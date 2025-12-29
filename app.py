@@ -1,55 +1,58 @@
 import streamlit as st
 import cv2
-import mediapipe as mp
 import numpy as np
 
 st.set_page_config(page_title="Finger Counter", layout="centered")
-st.title("✋ Finger Counting App")
-st.write("Show your hand to the camera")
+st.title("✋ Finger Counting MVP")
+st.write("Show your hand clearly against plain background")
 
-# Initialize MediaPipe
-mp_hands = mp.solutions.hands
-hands = mp_hands.Hands(
-    static_image_mode=False,
-    max_num_hands=1,
-    min_detection_confidence=0.7,
-    min_tracking_confidence=0.7
-)
-mp_draw = mp.solutions.drawing_utils
+frame = st.camera_input("Turn on Camera")
 
-# Camera input
-frame = st.camera_input("Turn on camera")
+def count_fingers(image):
+    # Convert to grayscale
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-def count_fingers(hand_landmarks):
-    tips = [4, 8, 12, 16, 20]
-    fingers = []
+    # Blur to remove noise
+    blur = cv2.GaussianBlur(gray, (35, 35), 0)
 
-    # Thumb (special case)
-    fingers.append(
-        hand_landmarks.landmark[tips[0]].x >
-        hand_landmarks.landmark[tips[0] - 1].x
+    # Threshold
+    _, thresh = cv2.threshold(blur, 0, 255,
+                              cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+    # Find contours
+    contours, _ = cv2.findContours(
+        thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
     )
 
-    # Other 4 fingers
-    for i in range(1, 5):
-        fingers.append(
-            hand_landmarks.landmark[tips[i]].y <
-            hand_landmarks.landmark[tips[i] - 2].y
-        )
+    if not contours:
+        return 0
 
-    return fingers.count(True)
+    # Largest contour = hand
+    cnt = max(contours, key=cv2.contourArea)
+
+    # Convex hull
+    hull = cv2.convexHull(cnt, returnPoints=False)
+
+    if hull is None or len(hull) < 3:
+        return 0
+
+    defects = cv2.convexityDefects(cnt, hull)
+
+    if defects is None:
+        return 1
+
+    finger_count = 0
+    for i in range(defects.shape[0]):
+        s, e, f, d = defects[i, 0]
+        if d > 10000:  # depth threshold
+            finger_count += 1
+
+    return finger_count + 1
 
 if frame is not None:
-    # Convert image
     image = np.array(frame)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-    # Process image
-    results = hands.process(image)
+    fingers = count_fingers(image)
 
-    if results.multi_hand_landmarks:
-        for hand_landmarks in results.multi_hand_landmarks:
-            finger_count = count_fingers(hand_landmarks)
-            st.success(f"🖐️ Fingers Detected: {finger_count}")
-    else:
-        st.warning("No hand detected. Show your hand clearly.")
+    st.success(f"🖐️ Fingers Detected: {fingers}")
