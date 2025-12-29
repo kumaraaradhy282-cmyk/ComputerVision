@@ -1,50 +1,27 @@
 import streamlit as st
-import cv2
-import numpy as np
 
-st.set_page_config(page_title="Finger Counter", layout="centered")
-st.title("✋ Finger Counting MVP")
-st.write("Show one hand clearly on a plain background")
+st.set_page_config(page_title="Bank Account Opening", layout="centered")
 
-image_file = st.camera_input("Turn on Camera")
+st.title("🏦 Bank Account Opening Form")
+st.write("Please enter your details and capture your photo")
 
-def count_fingers(image):
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    blur = cv2.GaussianBlur(gray, (35, 35), 0)
+# User inputs
+name = st.text_input("Full Name")
+account_number = st.text_input("Bank Account Number")
 
-    _, thresh = cv2.threshold(
-        blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
-    )
+# Camera input
+photo = st.camera_input("Capture your photo")
 
-    contours, _ = cv2.findContours(
-        thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-    )
+# Submit button
+if st.button("Submit"):
+    if name and account_number and photo:
+        st.success("✅ Account Opening Data Submitted Successfully")
 
-    if not contours:
-        return 0
+        st.subheader("📄 Submitted Details")
+        st.write(f"**Name:** {name}")
+        st.write(f"**Account Number:** {account_number}")
 
-    hand = max(contours, key=cv2.contourArea)
-    hull = cv2.convexHull(hand, returnPoints=False)
-
-    if hull is None or len(hull) < 3:
-        return 0
-
-    defects = cv2.convexityDefects(hand, hull)
-
-    if defects is None:
-        return 1
-
-    count = 0
-    for i in range(defects.shape[0]):
-        _, _, _, depth = defects[i, 0]
-        if depth > 10000:
-            count += 1
-
-    return count + 1
-
-if image_file is not None:
-    img = np.array(image_file)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-    fingers = count_fingers(img)
-    st.success(f"🖐️ Fingers Detected: {fingers}")
+        st.subheader("📸 Captured Photo")
+        st.image(photo)
+    else:
+        st.error("❌ Please fill all details and capture photo")
